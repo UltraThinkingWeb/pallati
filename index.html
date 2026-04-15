@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Pallat 15 kate - Model 3D (Gamma + L)</title>
+  <title>Pallat 15 kate - Model 3D (L + L)</title>
   <style>
     :root {
       --bg1: #0b1b2b;
@@ -127,7 +127,7 @@
   <div id="app"></div>
 
   <div class="panel">
-    <h1 class="title">Model 3D: Pallat 15 kate (Gamma + L, kend 55)</h1>
+    <h1 class="title">Model 3D: Pallat 15 kate (L + L, kend 55)</h1>
     <p class="meta">
       Breza horizontale 50 cm ne cdo solete, ndarje vertikale ne qoshe, dhe korniza 50 cm rreth dritareve (demonstrim).
       Leviz: mouse/touch drag. Zoom: wheel/pinch.
@@ -163,6 +163,7 @@
     scene.background = new THREE.Color(0x0b1620);
 
     const camera = new THREE.PerspectiveCamera(56, window.innerWidth / window.innerHeight, 0.1, 2000);
+    camera.up.set(0, 0, 1);
     camera.position.set(230, -220, 150);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
@@ -174,6 +175,11 @@
     controls.target.set(95, 38, 18);
     controls.enableDamping = true;
     controls.dampingFactor = 0.08;
+    controls.enablePan = false;
+    controls.update();
+    const fixedPolar = controls.getPolarAngle();
+    controls.minPolarAngle = fixedPolar;
+    controls.maxPolarAngle = fixedPolar;
 
     const hemi = new THREE.HemisphereLight(0xe3f2ff, 0x213346, 1.0);
     scene.add(hemi);
@@ -334,29 +340,28 @@
       }
     }
 
-    const gammaPts = [
-      [0, 0], [120, 0], [120, 12], [12, 12], [12, 38], [0, 38]
-    ];
-
     const lLocal = [
       [0, 0], [120, 0], [120, 12], [12, 12], [12, 38], [0, 38]
     ];
 
-    const lRot = rotate2D(lLocal, JOIN_ANGLE);
-    const lPts = lRot.map(([x, y]) => [x + 120, y]);
+    const l1Pts = lLocal.map(([x, y]) => [x, y]);
+    const l2Rot = rotate2D(lLocal, JOIN_ANGLE);
+    // L e dyte nis ne piken ku mbaron krahu horizontal i L se pare.
+    const l2Start = l1Pts[1];
+    const l2Pts = l2Rot.map(([x, y]) => [x + l2Start[0], y + l2Start[1]]);
 
-    createExtrudedMesh(gammaPts, TOTAL_H, matBody, 'Gamma_Bllok');
-    createExtrudedMesh(lPts, TOTAL_H, matBody, 'L_Bllok');
+    createExtrudedMesh(l1Pts, TOTAL_H, matBody, 'L1_Bllok');
+    createExtrudedMesh(l2Pts, TOTAL_H, matBody, 'L2_Bllok');
 
-    addBandSurfaces(gammaPts);
-    addBandSurfaces(lPts);
-    addBandLoops(gammaPts);
-    addBandLoops(lPts);
-    addVerticalCorners(gammaPts);
-    addVerticalCorners(lPts);
+    addBandSurfaces(l1Pts);
+    addBandSurfaces(l2Pts);
+    addBandLoops(l1Pts);
+    addBandLoops(l2Pts);
+    addVerticalCorners(l1Pts);
+    addVerticalCorners(l2Pts);
 
-    addWindowFramesOnEdge(gammaPts[0], gammaPts[1], 'Gamma');
-    addWindowFramesOnEdge(lPts[0], lPts[1], 'L');
+    addWindowFramesOnEdge(l1Pts[0], l1Pts[1], 'L1');
+    addWindowFramesOnEdge(l2Pts[0], l2Pts[1], 'L2');
 
     // Label nyja 55
     const spriteCanvas = document.createElement('canvas');
@@ -382,7 +387,7 @@
         modelRoot,
         (result) => {
           const blob = new Blob([result], { type: 'model/gltf-binary' });
-          downloadBlob(blob, 'pallat_15kate_gamma_L.glb');
+          downloadBlob(blob, 'pallat_15kate_L_L.glb');
         },
         { binary: true, trs: false, onlyVisible: true }
       );
@@ -394,7 +399,7 @@
       const exporter = new OBJExporter();
       const objText = exporter.parse(modelRoot);
       const blob = new Blob([objText], { type: 'text/plain' });
-      downloadBlob(blob, 'pallat_15kate_gamma_L.obj');
+      downloadBlob(blob, 'pallat_15kate_L_L.obj');
     });
 
     // Screenshot
