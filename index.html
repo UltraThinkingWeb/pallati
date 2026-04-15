@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="sq">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Pallat 15 kate - Model 3D (Gamma + L)</title>
+  <style>
+    :root {
+      --bg1: #0b1b2b;
+      --bg2: #16324a;
+      --panel: rgba(8, 16, 24, 0.74);
+      --text: #f1f5f9;
+      --muted: #a6b4c3;
+      --accent: #ff6b35;
+      --accent2: #ffb03a;
+      --ok: #28c76f;
+    }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: radial-gradient(1200px 700px at 15% 10%, #23486a 0%, var(--bg1) 48%, #08111a 100%);
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      color: var(--text);
+      overflow: hidden;
+    }
+
+    #app {
+      position: fixed;
+      inset: 0;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+    }
+
+    .panel {
+      position: fixed;
+      top: 14px;
+      left: 14px;
+      right: 14px;
+      max-width: 520px;
+      background: var(--panel);
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 14px;
+      padding: 12px 14px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 10px 35px rgba(0,0,0,0.28);
+      z-index: 10;
+    }
+
+    .title {
+      margin: 0 0 8px;
+      font-size: 17px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+
+    .meta {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 10px;
+      padding: 10px 12px;
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 13px;
+      letter-spacing: 0.15px;
+    }
+
+    .b1 { background: linear-gradient(90deg, var(--accent), #ff8548); }
+    .b2 { background: linear-gradient(90deg, #3b82f6, #2563eb); }
+    .b3 { background: linear-gradient(90deg, #10b981, #059669); }
+    .b4 { background: linear-gradient(90deg, #6b7280, #4b5563); }
+
+    .legend {
+      position: fixed;
+      bottom: 12px;
+      left: 14px;
+      right: 14px;
+      max-width: 520px;
+      background: rgba(8,16,24,0.68);
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 12px;
+      padding: 10px 12px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      z-index: 10;
+    }
+
+    .dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 6px;
+      transform: translateY(1px);
+    }
+
+    @media (max-width: 640px) {
+      .panel { max-width: none; }
+      .title { font-size: 15px; }
+      .meta { font-size: 12px; }
+      button { font-size: 12px; padding: 9px 10px; }
+      .legend { font-size: 11px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <div class="panel">
+    <h1 class="title">Model 3D: Pallat 15 kate (Gamma + L, kend 55)</h1>
+    <p class="meta">
+      Breza horizontale 50 cm ne cdo solete, ndarje vertikale ne qoshe, dhe korniza 50 cm rreth dritareve (demonstrim).
+      Leviz: mouse/touch drag. Zoom: wheel/pinch.
+    </p>
+    <div class="buttons">
+      <button class="b1" id="glbBtn">Shkarko GLB</button>
+      <button class="b2" id="objBtn">Shkarko OBJ</button>
+      <button class="b3" id="pngBtn">Shkarko PNG</button>
+      <button class="b4" id="resetBtn">Reset pamja</button>
+    </div>
+  </div>
+
+  <div class="legend">
+    <span class="dot" style="background:#bcc7d3"></span> Trupat e objektit
+    &nbsp;&nbsp; <span class="dot" style="background:#ff6b35"></span> Breza 50 cm (lesh guri A1)
+    &nbsp;&nbsp; <span class="dot" style="background:#ffd166"></span> Korniza dritaresh 50 cm
+  </div>
+
+  <script type="module">
+    import * as THREE from './libs/three.module.js';
+    import { OrbitControls } from './libs/examples/jsm/controls/OrbitControls.js';
+    import { GLTFExporter } from './libs/examples/jsm/exporters/GLTFExporter.js';
+    import { OBJExporter } from './libs/examples/jsm/exporters/OBJExporter.js';
+
+    const FLOORS = 15;
+    const FLOOR_H = 3;
+    const TOTAL_H = FLOORS * FLOOR_H; // 45m
+    const BAND_H = 0.5;               // 50cm
+    const JOIN_ANGLE = 55;            // kendi i vogel
+
+    const app = document.getElementById('app');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0b1620);
+
+    const camera = new THREE.PerspectiveCamera(56, window.innerWidth / window.innerHeight, 0.1, 2000);
+    camera.position.set(230, -220, 150);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    app.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(95, 38, 18);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+
+    const hemi = new THREE.HemisphereLight(0xe3f2ff, 0x213346, 1.0);
+    scene.add(hemi);
+
+    const sun = new THREE.DirectionalLight(0xffffff, 1.1);
+    sun.position.set(180, -120, 200);
+    scene.add(sun);
+
+    const grid = new THREE.GridHelper(520, 52, 0x3a5366, 0x2a3f50);
+    grid.position.z = 0;
+    grid.rotation.x = Math.PI / 2;
+    scene.add(grid);
+
+    const modelRoot = new THREE.Group();
+    modelRoot.name = 'Pallat15Kate_Modeli';
+    scene.add(modelRoot);
+
+    const matBody = new THREE.MeshStandardMaterial({ color: 0xbcc7d3, roughness: 0.64, metalness: 0.05 });
+    const matBand = new THREE.MeshStandardMaterial({ color: 0xff6b35, roughness: 0.72, metalness: 0.02 });
+    const matFrame = new THREE.MeshStandardMaterial({ color: 0xffd166, roughness: 0.75, metalness: 0.04 });
+    const matGlass = new THREE.MeshStandardMaterial({ color: 0x274e77, roughness: 0.15, metalness: 0.25 });
+
+    function rotate2D(points, deg) {
+      const a = THREE.MathUtils.degToRad(deg);
+      const ca = Math.cos(a);
+      const sa = Math.sin(a);
+      return points.map(([x, y]) => [x * ca - y * sa, x * sa + y * ca]);
+    }
+
+    function createExtrudedMesh(points2D, height, material, name) {
+      const shape = new THREE.Shape();
+      shape.moveTo(points2D[0][0], points2D[0][1]);
+      for (let i = 1; i < points2D.length; i++) shape.lineTo(points2D[i][0], points2D[i][1]);
+      shape.closePath();
+
+      const geo = new THREE.ExtrudeGeometry(shape, {
+        depth: height,
+        bevelEnabled: false,
+        curveSegments: 1,
+        steps: 1
+      });
+
+      const mesh = new THREE.Mesh(geo, material);
+      mesh.name = name;
+      modelRoot.add(mesh);
+      return mesh;
+    }
+
+    function addBandLoops(points2D) {
+      const contour = points2D.map(([x, y]) => new THREE.Vector3(x, y, 0));
+      const zLevels = [];
+      for (let n = 1; n <= 14; n++) {
+        zLevels.push(n * FLOOR_H - 0.25);
+        zLevels.push(n * FLOOR_H + 0.25);
+      }
+      zLevels.push(44.5);
+      zLevels.push(45.0);
+
+      const lineMat = new THREE.LineBasicMaterial({ color: 0xff6b35 });
+      for (const z of zLevels) {
+        const pts = contour.map(v => new THREE.Vector3(v.x, v.y, z));
+        pts.push(pts[0].clone());
+        const g = new THREE.BufferGeometry().setFromPoints(pts);
+        const line = new THREE.Line(g, lineMat);
+        modelRoot.add(line);
+      }
+    }
+
+    function addVerticalCorners(points2D) {
+      const lineMat = new THREE.LineBasicMaterial({ color: 0xff8f5e });
+      for (const [x, y] of points2D) {
+        const pts = [new THREE.Vector3(x, y, 0), new THREE.Vector3(x, y, TOTAL_H)];
+        const g = new THREE.BufferGeometry().setFromPoints(pts);
+        modelRoot.add(new THREE.Line(g, lineMat));
+      }
+    }
+
+    function addWindowFramesOnEdge(pA, pB, sideName) {
+      const a = new THREE.Vector3(pA[0], pA[1], 0);
+      const b = new THREE.Vector3(pB[0], pB[1], 0);
+      const dir = b.clone().sub(a);
+      const edgeLen = dir.length();
+      dir.normalize();
+      const normal = new THREE.Vector3(-dir.y, dir.x, 0);
+      const angle = Math.atan2(dir.y, dir.x);
+
+      const margin = 8;
+      const step = 12;
+      const count = Math.max(2, Math.floor((edgeLen - 2 * margin) / step));
+
+      const winW = 1.5;
+      const winH = 1.6;
+      const frame = 0.5;
+      const d = 0.14;
+
+      for (let f = 0; f < FLOORS; f++) {
+        if (f % 2 !== 0) continue;
+        const zc = f * FLOOR_H + 1.5;
+
+        for (let i = 0; i < count; i++) {
+          const s = margin + i * step;
+          const c = a.clone().add(dir.clone().multiplyScalar(s));
+          c.z = zc;
+          const out = normal.clone().multiplyScalar(d / 2 + 0.03);
+
+          const glass = new THREE.Mesh(new THREE.BoxGeometry(winW, d, winH), matGlass);
+          glass.position.copy(c.clone().add(out));
+          glass.rotation.z = angle;
+          glass.name = `Dritare_${sideName}_${f}_${i}`;
+          modelRoot.add(glass);
+
+          const top = new THREE.Mesh(new THREE.BoxGeometry(winW + 2 * frame, d, frame), matFrame);
+          top.position.copy(c.clone().add(out).add(new THREE.Vector3(0, 0, winH / 2 + frame / 2)));
+          top.rotation.z = angle;
+          modelRoot.add(top);
+
+          const bot = top.clone();
+          bot.position.copy(c.clone().add(out).add(new THREE.Vector3(0, 0, -winH / 2 - frame / 2)));
+          modelRoot.add(bot);
+
+          const left = new THREE.Mesh(new THREE.BoxGeometry(frame, d, winH), matFrame);
+          left.position.copy(c.clone().add(out).sub(dir.clone().multiplyScalar(winW / 2 + frame / 2)));
+          left.rotation.z = angle;
+          modelRoot.add(left);
+
+          const right = left.clone();
+          right.position.copy(c.clone().add(out).add(dir.clone().multiplyScalar(winW / 2 + frame / 2)));
+          modelRoot.add(right);
+        }
+      }
+    }
+
+    function addBandSurfaces(points2D) {
+      const edgeHeight = BAND_H;
+      const inset = 0.18;
+      for (let n = 1; n <= 14; n++) {
+        const z = n * FLOOR_H - 0.25;
+        addPerimeterStrip(points2D, z, edgeHeight, inset);
+      }
+      addPerimeterStrip(points2D, 44.5, 0.5, inset);
+    }
+
+    function addPerimeterStrip(points2D, z, h, thickness) {
+      for (let i = 0; i < points2D.length; i++) {
+        const p1 = points2D[i];
+        const p2 = points2D[(i + 1) % points2D.length];
+        const v1 = new THREE.Vector2(p1[0], p1[1]);
+        const v2 = new THREE.Vector2(p2[0], p2[1]);
+        const edge = v2.clone().sub(v1);
+        const len = edge.length();
+        if (len < 0.001) continue;
+
+        const center = new THREE.Vector3((p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2, z + h / 2);
+        const box = new THREE.Mesh(new THREE.BoxGeometry(len, thickness, h), matBand);
+        box.position.copy(center);
+        box.rotation.z = Math.atan2(edge.y, edge.x);
+        modelRoot.add(box);
+      }
+    }
+
+    const gammaPts = [
+      [0, 0], [120, 0], [120, 12], [12, 12], [12, 38], [0, 38]
+    ];
+
+    const lLocal = [
+      [0, 0], [120, 0], [120, 12], [12, 12], [12, 38], [0, 38]
+    ];
+
+    const lRot = rotate2D(lLocal, JOIN_ANGLE);
+    const lPts = lRot.map(([x, y]) => [x + 120, y]);
+
+    createExtrudedMesh(gammaPts, TOTAL_H, matBody, 'Gamma_Bllok');
+    createExtrudedMesh(lPts, TOTAL_H, matBody, 'L_Bllok');
+
+    addBandSurfaces(gammaPts);
+    addBandSurfaces(lPts);
+    addBandLoops(gammaPts);
+    addBandLoops(lPts);
+    addVerticalCorners(gammaPts);
+    addVerticalCorners(lPts);
+
+    addWindowFramesOnEdge(gammaPts[0], gammaPts[1], 'Gamma');
+    addWindowFramesOnEdge(lPts[0], lPts[1], 'L');
+
+    // Label nyja 55
+    const spriteCanvas = document.createElement('canvas');
+    spriteCanvas.width = 512;
+    spriteCanvas.height = 128;
+    const ctx = spriteCanvas.getContext('2d');
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(0, 0, 512, 128);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 38px Segoe UI';
+    ctx.fillText('Nyja e bashkimit: 55°', 24, 78);
+    const tex = new THREE.CanvasTexture(spriteCanvas);
+    const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
+    spr.position.set(122, 3, 7);
+    spr.scale.set(28, 7, 1);
+    scene.add(spr);
+
+    // Export GLB
+    const glbBtn = document.getElementById('glbBtn');
+    glbBtn.addEventListener('click', () => {
+      const exporter = new GLTFExporter();
+      exporter.parse(
+        modelRoot,
+        (result) => {
+          const blob = new Blob([result], { type: 'model/gltf-binary' });
+          downloadBlob(blob, 'pallat_15kate_gamma_L.glb');
+        },
+        { binary: true, trs: false, onlyVisible: true }
+      );
+    });
+
+    // Export OBJ
+    const objBtn = document.getElementById('objBtn');
+    objBtn.addEventListener('click', () => {
+      const exporter = new OBJExporter();
+      const objText = exporter.parse(modelRoot);
+      const blob = new Blob([objText], { type: 'text/plain' });
+      downloadBlob(blob, 'pallat_15kate_gamma_L.obj');
+    });
+
+    // Screenshot
+    const pngBtn = document.getElementById('pngBtn');
+    pngBtn.addEventListener('click', () => {
+      renderer.render(scene, camera);
+      renderer.domElement.toBlob((blob) => {
+        if (blob) downloadBlob(blob, 'pamje_3d_pallati.png');
+      });
+    });
+
+    // Reset camera
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      camera.position.set(230, -220, 150);
+      controls.target.set(95, 38, 18);
+      controls.update();
+    });
+
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1200);
+    }
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+  </script>
+</body>
+</html>
