@@ -144,6 +144,7 @@
     <span class="dot" style="background:#bcc7d3"></span> Trupat e objektit
     &nbsp;&nbsp; <span class="dot" style="background:#ff6b35"></span> Breza 50 cm (lesh guri A1)
     &nbsp;&nbsp; <span class="dot" style="background:#ffd166"></span> Korniza dritaresh 50 cm
+    &nbsp;&nbsp; <span class="dot" style="background:#ffcf66"></span> Dritare te ndezura
   </div>
 
   <script type="module">
@@ -201,6 +202,23 @@
     const matBand = new THREE.MeshStandardMaterial({ color: 0xff6b35, roughness: 0.72, metalness: 0.02 });
     const matFrame = new THREE.MeshStandardMaterial({ color: 0xffd166, roughness: 0.75, metalness: 0.04 });
     const matGlass = new THREE.MeshStandardMaterial({ color: 0x274e77, roughness: 0.15, metalness: 0.25 });
+      const animatedWindows = [];
+
+      function seeded01(seed) {
+        const x = Math.sin(seed * 12.9898) * 43758.5453;
+        return x - Math.floor(x);
+      }
+
+      function createWindowLightMaterial(seed) {
+        const warm = seeded01(seed + 3.1) > 0.38;
+        return new THREE.MeshStandardMaterial({
+          color: warm ? 0xffebbc : 0xdaf2ff,
+          emissive: warm ? 0xffb347 : 0x90d4ff,
+          emissiveIntensity: warm ? 1.2 : 0.95,
+          roughness: 0.25,
+          metalness: 0.04
+        });
+      }
 
     function rotate2D(points, deg) {
       const a = THREE.MathUtils.degToRad(deg);
@@ -290,6 +308,25 @@
           glass.rotation.z = angle;
           glass.name = `Dritare_${sideName}_${f}_${i}`;
           modelRoot.add(glass);
+
+          const lightSeed = f * 97 + i * 31 + sideName.length * 17;
+          if (seeded01(lightSeed) > 0.38) {
+            const lightMat = createWindowLightMaterial(lightSeed);
+            const lit = new THREE.Mesh(new THREE.BoxGeometry(winW * 0.82, d * 0.55, winH * 0.82), lightMat);
+            lit.position.copy(c.clone().add(out.clone().multiplyScalar(1.18)));
+            lit.rotation.z = angle;
+            modelRoot.add(lit);
+
+            if (seeded01(lightSeed + 5.7) > 0.5) {
+              animatedWindows.push({
+                mat: lightMat,
+                base: 0.9 + seeded01(lightSeed + 7.2) * 0.7,
+                amp: 0.12 + seeded01(lightSeed + 9.3) * 0.22,
+                speed: 0.8 + seeded01(lightSeed + 11.4) * 1.2,
+                phase: seeded01(lightSeed + 13.5) * Math.PI * 2
+              });
+            }
+          }
 
           const top = new THREE.Mesh(new THREE.BoxGeometry(winW + 2 * frame, d, frame), matFrame);
           top.position.copy(c.clone().add(out).add(new THREE.Vector3(0, 0, winH / 2 + frame / 2)));
@@ -437,6 +474,10 @@
 
     function animate() {
       requestAnimationFrame(animate);
+      const t = performance.now() * 0.001;
+      for (const w of animatedWindows) {
+        w.mat.emissiveIntensity = w.base + Math.sin(t * w.speed + w.phase) * w.amp;
+      }
       controls.update();
       renderer.render(scene, camera);
     }
